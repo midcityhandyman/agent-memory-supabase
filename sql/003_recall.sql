@@ -79,6 +79,13 @@ language sql
 stable
 security invoker
 set search_path = public, extensions
+-- Row level security and the agent_id filter are applied after the HNSW
+-- index returns its nearest rows. In a table shared by many owners those
+-- rows can all belong to someone else, leaving the vector pool empty.
+-- Iterative scan (pgvector 0.8.0 or newer) keeps reading the index until
+-- the limit is met or hnsw.max_scan_tuples is reached. The pool is
+-- re-scored below, so relaxed ordering costs nothing.
+set hnsw.iterative_scan = relaxed_order
 as $$
   with q as (
     -- OR together the stemmed lexemes of the query. websearch_to_tsquery

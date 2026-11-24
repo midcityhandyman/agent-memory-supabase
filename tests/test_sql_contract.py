@@ -84,6 +84,19 @@ def test_functions_are_security_invoker():
     assert body.count("security invoker") >= 5
 
 
+def test_recall_turns_on_iterative_index_scans():
+    # Without it a shared HNSW index can hand back only other owners' rows.
+    # The live check is test_vector_recall_survives_a_crowded_shared_index.
+    recall = SQL["003_recall.sql"].split("create or replace function public.recall_memories")[1]
+    header = recall.split("as $$")[0]
+    assert re.search(r"^set hnsw\.iterative_scan = relaxed_order$", header, flags=re.M)
+
+
+def test_local_shim_reads_the_sub_claim_both_ways():
+    shim = (ROOT / "sql" / "dev" / "000_local_shim.sql").read_text(encoding="utf-8")
+    assert "request.jwt.claim.sub" in shim and "request.jwt.claims" in shim
+
+
 def test_no_em_dashes_anywhere_in_the_repo():
     skip = {".git", ".deps", ".venv", "__pycache__", ".pytest_cache"}
     for path in ROOT.rglob("*"):

@@ -221,6 +221,38 @@ def test_archived_and_other_agent_memories_are_excluded(conn):
     assert len(recall(conn, "phone tree instructions", p_match_count=0)) == 0
 
 
+def test_vector_recall_survives_a_crowded_shared_index(conn):
+    # Another owner holds 300 rows that sit closer to the query than ours.
+    # A plain HNSW scan returns its nearest ef_search rows (40 by default),
+    # row level security then removes all of them, and the vector pool comes
+    # back empty. recall_memories turns on pgvector's iterative scan so the
+    # index keeps going until the caller's own rows are found.
+    conn.execute("reset role")
+    conn.execute(
+        "insert into memories (owner_id, content, embedding) "
+        "select %s, 'crowd ' || g, "
+        "  ('[1,' || (g * 0.0001)::text || repeat(',0', 382) || ']')::extensions.vector "
+        "from generate_series(1, 300) g", (USER_B,))
+    become(conn, USER_A)
+    mine = [conn.execute(
+        "insert into memories (content, embedding) values (%s, %s::extensions.vector) "
+        "returning id", (f"mine {i}", "[1,0.5," + str(i * 0.01) + ",0" * 381 + "]")).fetchone()[0]
+        for i in range(3)]
+    # Leave the planner no route but the HNSW index, which is the route it
+    # takes by itself once one owner's rows are too many to sort exactly.
+    # The drop is rolled back with the rest of the test.
+    conn.execute("reset role")
+    conn.execute("drop index memories_owner_agent_idx")
+    conn.execute("set local enable_seqscan = off")
+    become(conn, USER_A)
+    query = "[1" + ",0" * 383 + "]"
+    rows = conn.execute(
+        "select id, vector_score from recall_memories('zzz', %s::extensions.vector)",
+        (query,)).fetchall()
+    assert {r[0] for r in rows} == set(mine)
+    assert all(r[1] > 0.8 for r in rows)
+
+
 def test_rls_hides_everything_from_another_user(conn):
     import psycopg
 

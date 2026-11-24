@@ -135,3 +135,11 @@ def test_client_works_end_to_end_over_the_fake_transport(backend, transport):
     assert client.recall("anything") == []
     sent = transport.calls[0]["json"]
     assert len(sent["p_query_embedding"]) == 384 and sent["p_agent_id"] == "a1"
+
+
+def test_rest_path_can_point_at_a_bare_postgrest(transport):
+    backend = SupabaseBackend("http://localhost:3000/", "key-not-real",
+                              transport=transport, rest_path="")
+    transport.reply(200, [])
+    backend.active_rules("default")
+    assert transport.calls[0]["url"] == "http://localhost:3000/rpc/active_rules"

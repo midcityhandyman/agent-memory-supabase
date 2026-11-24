@@ -15,8 +15,8 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install pytest
@@ -25,7 +25,7 @@ jobs:
         run: python demo/run_demo.py | diff - demo/output.txt
 
   postgres:
-    name: SQL against Postgres 16 with pgvector
+    name: SQL on Postgres 16 with pgvector, client over PostgREST
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -41,9 +41,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      POSTGREST_URL: http://localhost:3000
+      POSTGREST_JWT_SECRET: ci-only-secret-at-least-32-characters-long
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: python -m pip install pytest "psycopg[binary]"
@@ -51,4 +53,22 @@ jobs:
         run: |
           python scripts/apply_sql.py --with-shim
           python scripts/apply_sql.py --with-shim
-      - run: python -m pytest -q tests/integration
+      - name: start PostgREST in front of the same database
+        run: |
+          docker run -d --name postgrest --network host \
+            -e PGRST_DB_URI=postgres://postgres:postgres@localhost:5432/postgres \
+            -e PGRST_DB_ANON_ROLE=anon \
+            -e PGRST_DB_EXTRA_SEARCH_PATH=public,extensions \
+            -e PGRST_JWT_SECRET="$POSTGREST_JWT_SECRET" \
+            postgrest/postgrest:v16.6
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:3000/ && exit 0
+            sleep 1
+          done
+          docker logs postgrest
+          exit 1
+      - name: integration tests, none skipped
+        shell: bash
+        run: |
+          python -m pytest -q -rs tests/integration | tee result.txt
+          ! grep -q skipped result.txt

@@ -12,7 +12,12 @@ returns uuid
 language sql
 stable
 as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+  -- Same two lookups as the function Supabase ships: the legacy per claim
+  -- setting first, then the JSON claims that current PostgREST sets.
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+  )::uuid
 $$;
 
 do $$

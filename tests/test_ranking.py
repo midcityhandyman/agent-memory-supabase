@@ -119,3 +119,19 @@ def test_limit_is_applied_after_sorting():
 def test_without_vector_puts_all_weight_on_text():
     cfg = RankingConfig().without_vector()
     assert relevance(0.5, 0.0, cfg) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("bad", [
+    {"half_life_days": 0.0}, {"half_life_days": -1.0},
+    {"prior_helped": 0.0}, {"prior_not_helped": -2.0},
+    {"outcome_weight": 1.5}, {"outcome_weight": -0.1},
+    {"recency_weight": 1.2}, {"w_text": -0.4}, {"w_vector": -0.6},
+])
+def test_config_rejects_values_that_break_the_score(bad):
+    with pytest.raises(ValueError):
+        RankingConfig(**bad)
+
+
+def test_score_is_never_negative_at_the_edges_of_the_allowed_config():
+    cfg = RankingConfig(outcome_weight=1.0, recency_weight=1.0)
+    assert blend_score(1.0, 1.0, helped=0, not_helped=10_000, age_days=10_000, config=cfg) >= 0.0

@@ -31,6 +31,21 @@ class RankingConfig:
     recency_weight: float = 0.15
     half_life_days: float = 90.0
 
+    def __post_init__(self) -> None:
+        # Outside these ranges the score stops meaning anything: a zero half
+        # life or zero priors divide by zero, and an outcome weight above 1
+        # lets enough bad feedback turn a score negative.
+        if self.w_text < 0 or self.w_vector < 0:
+            raise ValueError("w_text and w_vector must not be negative")
+        if not 0 <= self.outcome_weight <= 1:
+            raise ValueError("outcome_weight must be between 0 and 1")
+        if not 0 <= self.recency_weight <= 1:
+            raise ValueError("recency_weight must be between 0 and 1")
+        if self.prior_helped <= 0 or self.prior_not_helped <= 0:
+            raise ValueError("prior_helped and prior_not_helped must be positive")
+        if self.half_life_days <= 0:
+            raise ValueError("half_life_days must be positive")
+
     def without_vector(self) -> "RankingConfig":
         """Config used when the query has no embedding: text carries it all."""
         return replace(self, w_vector=0.0)

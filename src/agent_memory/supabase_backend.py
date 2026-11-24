@@ -37,16 +37,22 @@ def _ts(value: Optional[str]) -> Optional[datetime]:
 
 class SupabaseBackend:
     def __init__(self, url: str, key: str, access_token: Optional[str] = None,
-                 transport: Transport = urllib_transport):
+                 transport: Transport = urllib_transport, rest_path: str = "/rest/v1"):
         """url: project URL. key: anon or service key. access_token: user JWT.
 
         With only the anon key the policies grant nothing, by design. Pass a
-        signed in user's access_token, or use the service key from trusted
-        server code (which bypasses RLS, so set owner_id yourself in SQL).
+        signed in user's access_token. The service key bypasses row level
+        security: recall then reads every owner's rows for the agent_id, and
+        inserts fail because owner_id defaults to auth.uid(), which is null
+        for that key. This client has no owner_id argument, so use the
+        service key only for reads you mean to be unscoped.
+
+        rest_path is where PostgREST is mounted. Supabase serves it under
+        /rest/v1. Pass "" for a bare PostgREST server.
         """
         if not url or not key:
             raise ValueError("url and key are required")
-        self.base = url.rstrip("/") + "/rest/v1"
+        self.base = url.rstrip("/") + rest_path
         self._key = key
         self._token = access_token or key
         self._transport = transport

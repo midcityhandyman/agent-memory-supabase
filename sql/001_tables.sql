@@ -12,6 +12,7 @@
 
 create schema if not exists extensions;
 create extension if not exists vector with schema extensions;
+-- 003_recall.sql needs pgvector 0.8.0 or newer (hnsw.iterative_scan).
 
 -- Embedding width. 384 matches small sentence embedding models and the
 -- offline hash embedder in the Python client. Change it here and in
