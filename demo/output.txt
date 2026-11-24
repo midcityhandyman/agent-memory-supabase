@@ -1,0 +1,60 @@
+agent-memory-supabase demo (offline, in memory backend, synthetic data)
+
+1. Rules layer: standing instructions, loaded at boot
+-----------------------------------------------------
+  [ 10] Never promise a start date without checking the calendar
+  [ 20] Quote prices only from the current price sheet
+  [ 50] Keep customer messages under five sentences
+
+2. Memory layer: curated memories
+---------------------------------
+  stored 5 memories for agent 'office-assistant'
+
+3. Recall before any feedback: "what deposit do we take before ordering materials"
+----------------------------------------------------------------------------------
+  #   score   text    vec  helped  not  title
+  1   0.739   0.88   0.67       0    0  Deposit policy (2024 sheet)
+  2   0.713   0.88   0.60       0    0  Deposit policy (current)
+  3   0.141   0.21   0.09       0    0  Warranty terms
+  Both deposit policies match on words and on vectors. With no feedback the
+  out of date one wins on similarity alone.
+
+4. Outcomes layer: the agent reports what actually helped
+---------------------------------------------------------
+  day 1: 'Deposit policy (2024 sheet)' not_helped, 'Deposit policy (current)' helped
+  day 2: 'Deposit policy (2024 sheet)' not_helped, 'Deposit policy (current)' helped
+  day 3: 'Deposit policy (2024 sheet)' not_helped, 'Deposit policy (current)' helped
+  outcome multiplier, stale:   0.786
+  outcome multiplier, current: 1.214
+
+5. Recall after feedback: same query, re-ranked
+-----------------------------------------------
+  #   score   text    vec  helped  not  title
+  1   0.863   0.88   0.60       3    0  Deposit policy (current)
+  2   0.579   0.88   0.67       0    3  Deposit policy (2024 sheet)
+  3   0.140   0.21   0.09       0    0  Warranty terms
+  gap between the top two results: 0.025 before, 0.285 after
+
+6. Deposit layer: raw notes wait in an inbox until promoted
+-----------------------------------------------------------
+  inbox holds 2 deposits
+  is the raw note recalled before promotion? no
+  promoted 1, rejected 1, inbox now holds 0
+  #   score   text    vec  helped  not  title
+  1   0.744   0.85   0.67       0    0  Arrival text preference
+
+7. Isolation: a second owner sees none of it
+--------------------------------------------
+  owner-b rules:   0
+  owner-b recall:  0
+  owner-b inbox:   0
+  On Supabase the same boundary is enforced by the policies in sql/005_rls_policies.sql.
+
+8. Archive: forgetting without deleting
+---------------------------------------
+  #   score   text    vec  helped  not  title
+  1   0.863   0.88   0.60       3    0  Deposit policy (current)
+  2   0.147   0.21   0.10       0    0  Arrival text preference
+  3   0.140   0.21   0.09       0    0  Warranty terms
+
+done
